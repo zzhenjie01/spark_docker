@@ -1,0 +1,6 @@
+pyspark==3.3.4
+kafka-python
+cassandra-driver
+pyodbc
+pandas
+numpy
