@@ -4,7 +4,7 @@
 
 1. Clone Repository
 
-`cd` into desired local directory. Then, run
+    `cd` into desired local directory. Then, run
 
     ```bash
     git clone https://github.com/zzhenjie01/spark_docker.git
