@@ -9,35 +9,37 @@ ARG HADOOP_VERSION=3
 ARG SCALA_VERSION=2.12
 ARG PYSPARK_VERSION=3.3.4
 
-# Install system dependencies and tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
-        python${PYTHON_VERSION} \
-        python3-pip \
-        libmariadb3 \
-        libmariadb-dev \
-        unixodbc \
-        unixodbc-dev \
-        freetds-bin \
-        freetds-dev \
-        tdsodbc && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create symbolic link for the installed python3.10
-RUN ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
-    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3
-
-# Install Spark
+# Install Spark here so that no need keep downloading when rebuilding image
 RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
     && tar xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
     && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
     && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
 
+# Install system dependencies and tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        build-essential \
+        python${PYTHON_VERSION} \
+        python3-dev \
+        python3-pip \
+        unixodbc \
+        unixodbc-dev \
+        freetds-bin \
+        freetds-dev \
+        tdsodbc \
+        gdal-bin \
+        libgdal-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic link for the installed python3.10
+RUN ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3
+
 # Set environment variables
 ENV SPARK_HOME=/opt/spark
 ENV PATH=$SPARK_HOME/sbin:$SPARK_HOME/bin:$PATH
-ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.5-src.zip
+ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*-src.zip
 ENV PYSPARK_PYTHON=python
 ENV PYSPARK_DRIVER_PYTHON=python
 ENV SPARK_NO_DAEMONIZE=true
