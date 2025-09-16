@@ -4,16 +4,24 @@ FROM eclipse-temurin:17-jre-jammy
 
 # Use ARG for build-time variables
 ARG PYTHON_VERSION=3.10
-ARG SPARK_VERSION=3.3.4
+ARG SPARK_VERSION=3.5.1
 ARG HADOOP_VERSION=3
 ARG SCALA_VERSION=2.12
-ARG PYSPARK_VERSION=3.3.4
+ARG PYSPARK_VERSION=3.5.1
 
 # Install Spark here so that no need keep downloading when rebuilding image
-RUN wget -q --user-agent="Docker-Spark-Build/1.0" https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
-    && tar xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
-    && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
-    && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+# RUN wget -q --user-agent="Docker-Spark-Build/1.0" https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
+#     && tar xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
+#     && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
+#     && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+
+# Copy Spark tarball from local filesystem
+COPY spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz /tmp/
+
+# Install Spark from local tarball
+RUN tar xzf /tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -C /opt \
+    && mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
+    && rm /tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
 
 # Install system dependencies and tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -61,8 +69,8 @@ RUN curl -L -o /opt/spark/jars/spark-cassandra-connector_${SCALA_VERSION}-${SPAR
     https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_${SCALA_VERSION}/${SPARK_VERSION}/spark-cassandra-connector_${SCALA_VERSION}-${SPARK_VERSION}.jar
 
 # Download MSSQL JDBC driver
-RUN curl -L -o /opt/spark/jars/mssql-jdbc-12.4.1.jre11.jar \
-    https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.4.1.jre11/mssql-jdbc-12.4.1.jre11.jar
+RUN curl -L -o /opt/spark/jars/mssql-jdbc-12.8.1.jre11.jar \
+    https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.8.1.jre11/mssql-jdbc-12.8.1.jre11.jar
 
 # Create working directory
 WORKDIR /app

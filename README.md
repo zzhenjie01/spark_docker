@@ -13,7 +13,7 @@
 2. Build Image
 
     ```bash
-    docker build -t spark-pyspark:3.3.4 .
+    docker build -t spark-pyspark:3.5.1 .
     ```
 
 3. Run `spark-submit` with local script on Standalone mode
@@ -23,10 +23,10 @@
     ```bash
     docker run -it --rm \
     -v $(pwd):/app \
-    spark-pyspark:3.3.4 \
+    spark-pyspark:3.5.1 \
     spark-submit \
     --master 'local[*]' \
-    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.4,com.datastax.spark:spark-cassandra-connector_2.12:3.4.1 \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,com.datastax.spark:spark-cassandra-connector_2.12:3.5.1 \
     /app/example_job.py
     ```
 
@@ -44,7 +44,7 @@
     docker run -it --rm \
     -v $(pwd):/app \
     -p 4040:4040 \
-    spark-pyspark:3.3.4 \
+    spark-pyspark:3.5.1 \
     /bin/bash
     ```
 
@@ -64,7 +64,7 @@
     --memory=4g \
     --cpus=2 \
     -v $(pwd):/app \
-    spark-pyspark:3.3.4 \
+    spark-pyspark:3.5.1 \
     spark-submit \
     --master 'local[*]' \
     --executor-memory 2g \
@@ -79,7 +79,7 @@
     docker run -it --rm \
     -v $(pwd):/app \
     -v $(pwd)/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf \
-    spark-pyspark:3.3.4 \
+    spark-pyspark:3.5.1 \
     spark-submit \
     /app/example_job.py
     ```
@@ -103,9 +103,21 @@ RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-$
 ```
 
 - We download Spark tarball file here so that we don't have to keep rebuilding images, if we decide to modify subsequent layers of the image.
-- Another reason is that this step is the slowest as the tarball file is ~3.5GB.
+- Another reason is that this step is the slowest as the tarball file is ~308MB.
 - Furthermore, Spark will impose throttling of download speed to prevent abuse and DDoS of their download service if they detect heavy use. [StackOverflow](https://stackoverflow.com/questions/68487404/are-downloads-from-spark-distribution-archive-often-slow).
 - Also, we can only download from the archive link instead of the mirror (which is faster) because mirror only contains the latest tarball and not the older ones.
+
+```Dockerfile
+# Copy Spark tarball from local filesystem
+COPY spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz /tmp/
+
+# Install Spark from local tarball
+RUN tar xzf /tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz -C /opt \
+    && mv /opt/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
+    && rm /tmp/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
+```
+
+- Alternatively, we could download Spark tarball to local directory using browser which is much faster and copy over when building the image.
 
 ```Dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -185,7 +197,7 @@ RUN curl -L -o /opt/spark/jars/spark-cassandra-connector_${SCALA_VERSION}-${SPAR
     https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_${SCALA_VERSION}/${SPARK_VERSION}.jar
 
 RUN curl -L -o /opt/spark/jars/mssql-jdbc-12.4.1.jre11.jar \
-    https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.4.1.jre11/mssql-jdbc-12.4.1.jre11.jar
+    https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.4.1.jre11/mssql-jdbc-12.8.1.jre11.jar
 ```
 
 - When we run this commands, the JAR files became part of the read-only image layers of our image. They're baked into the image itself at `/opt/spark/jars/`. There are no volumes created. Volumes are only used for persistent data that needs to survive container restarts or be shared between containers.

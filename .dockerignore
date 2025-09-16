@@ -1,0 +1,7 @@
+# Ensure Python cache and virtual environment does not get included in Docker build context
+__pycache__/
+.venv/
+
+.git
+.gitignore
+README.md
