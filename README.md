@@ -105,6 +105,7 @@ RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-$
 - We download Spark tarball file here so that we don't have to keep rebuilding images, if we decide to modify subsequent layers of the image.
 - Another reason is that this step is the slowest as the tarball file is ~3.5GB.
 - Furthermore, Spark will impose throttling of download speed to prevent abuse and DDoS of their download service if they detect heavy use. [StackOverflow](https://stackoverflow.com/questions/68487404/are-downloads-from-spark-distribution-archive-often-slow).
+- Also, we can only download from the archive link instead of the mirror (which is faster) because mirror only contains the latest tarball and not the older ones.
 
 ```Dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends \

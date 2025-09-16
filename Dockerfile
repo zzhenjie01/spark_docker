@@ -10,7 +10,7 @@ ARG SCALA_VERSION=2.12
 ARG PYSPARK_VERSION=3.3.4
 
 # Install Spark here so that no need keep downloading when rebuilding image
-RUN wget -q https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
+RUN wget -q --user-agent="Docker-Spark-Build/1.0" https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
     && tar xzf spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz \
     && mv spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION} /opt/spark \
     && rm spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz
@@ -58,7 +58,7 @@ RUN curl -L -o /opt/spark/jars/spark-sql-kafka-0-10_${SCALA_VERSION}-${SPARK_VER
 
 # Download Cassandra Spark connector
 RUN curl -L -o /opt/spark/jars/spark-cassandra-connector_${SCALA_VERSION}-${SPARK_VERSION}.jar \
-    https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_${SCALA_VERSION}/${SPARK_VERSION}.jar
+    https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_${SCALA_VERSION}/${SPARK_VERSION}/spark-cassandra-connector_${SCALA_VERSION}-${SPARK_VERSION}.jar
 
 # Download MSSQL JDBC driver
 RUN curl -L -o /opt/spark/jars/mssql-jdbc-12.4.1.jre11.jar \
