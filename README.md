@@ -12,6 +12,8 @@
 
 2. Build Image
 
+    Before running the following command make sure you have downloaded [Spark 3.5.1 tarball file](https://archive.apache.org/dist/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz) and place it in the directory where you are executing the `docker build`.
+
     ```bash
     docker build -t spark-pyspark:3.5.1 .
     ```
@@ -21,7 +23,9 @@
     Mount local directory and run `spark-submit`.
 
     ```bash
-    docker run -it --rm \
+    docker run -it \
+    --name spark-example \
+    -p 4040:4040
     -v $(pwd):/app \
     spark-pyspark:3.5.1 \
     spark-submit \
@@ -36,25 +40,51 @@
 
     Note that when we use `--packages` with `spark-submit` inside a container, the dependencies are downloaded to the container's internal filesystem, not to a Docker volume. Specifically, Spark downloads the packages to `/root/.ivy2/` inside the container's temporary filesystem. The `.ivy2` folder is in the container's writable layer (not a mounted volume). When the container exits, this writable layer is destroyed.
 
-4. Interactive development shell
-
-    Start an interactive container with your code mounted.
+    We can also separate the above commands into two parts. First, create the container and enter the interactive shell in the container. Second, run the Spark job via the `spark-submit` command in the interactive shell.
 
     ```bash
-    docker run -it --rm \
+    docker run -it \
+    --name spark-example \
+    -p 4040:4040
     -v $(pwd):/app \
-    -p 4040:4040 \
-    spark-pyspark:3.5.1 \
-    /bin/bash
+    spark-pyspark:3.5.1 
     ```
-
-    Inside container, you can run:
 
     ```bash
-    spark-submit /app/example_job.py
+    spark-submit \
+    --master 'local[*]' \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,com.datastax.spark:spark-cassandra-connector_2.12:3.5.1 \
+    /app/example_job.py
     ```
 
-5. For production deployments
+    Once done, the container will fall back to interactive shell. To exit, the container without deleting, we can run:
+
+    ```bash
+    exit
+    ```
+
+    Alternatively, we can stop the container by opening a new terminal and running the following:
+
+    ```bash
+    docker stop spark-example
+    ```
+
+    To restart the stopped container run the following command. The `-ai` flag is optional. It is used to see the output of your command, where `a` tells docker to attach the container's stdout and stderr to your current terminal, and `i` tells docker to attach stdin, too. Note that we don't use `docker run` because that tries to use a new container instead of reusing the old one.
+
+    ```bash
+    docker start -ai spark-example
+    ```
+
+    Then, we can submit our Spark job.
+
+    ```bash
+    spark-submit \
+    --master 'local[*]' \
+    --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,com.datastax.spark:spark-cassandra-connector_2.12:3.5.1 \
+    /app/example_job.py
+    ```
+
+4. For production deployments
 
     Build with specific network settings and resource limits
 
@@ -71,18 +101,23 @@
     /app/example_job.py
     ```
 
-6. Run `spark-submit` with local script on Standalone mode with `.conf` file
+    Again, we can seperate this command into 2. We can also enter, exit and reuse the container just like in step 3.
+
+5. Run `spark-submit` with local script on Standalone mode with `.conf` file
 
     Mount local directory and run spark-submit with `.conf`. We have to mount the local `.conf` file during runtime as well.
 
     ```bash
-    docker run -it --rm \
+    docker run -it \
+    --name spark-example \
     -v $(pwd):/app \
     -v $(pwd)/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf \
     spark-pyspark:3.5.1 \
     spark-submit \
     /app/example_job.py
     ```
+
+    Again, we can seperate this command into 2. We can also enter, exit and reuse the container just like in step 3.
 
 ## Documentation
 
@@ -172,7 +207,7 @@ ENV SPARK_NO_DAEMONIZE=true
 - No need to set `JAVA_HOME` and add Java binary to `PATH` because the base image already has it.
 - Both `/bin` and `/sbin` directories store executable programs. `/bin` contains essential binaries for basic system operations accessible to all users, while `/sbin` contains binaries primarily for system administration tasks, often restricted to the root user.
 - Note that the `py4j` version should match our Spark version and we use wildcard to avoid versioning issues.
-- PySpark is a wrapper around Spark. `PYTHONPATH` tells Python where to find these wrapper files that bridge the two worlds. `pyspark` is the Python package that allows you to interact with Spark. `py4j` bridge is a special library that lets Python code call Java methods. 
+- PySpark is a wrapper around Spark. `PYTHONPATH` tells Python where to find these wrapper files that bridge the two worlds. `pyspark` is the Python package that allows you to interact with Spark. `py4j` bridge is a special library that lets Python code call Java methods.
 - `$SPARK_HOME/python` contains the actual pyspark Python package. Without this, `import pyspark` would fail completely and this is where all the Python classes like SparkSession, DataFrame live.
 - `$SPARK_HOME/python/lib/py4j-*-src.zip` contains the py4j library (the Java-Python bridge) which allows Python code to make calls like `df.show()` which actually get executed in the Java Spark engine. Without this, you could `import pyspark` but nothing would work.
 
@@ -216,7 +251,6 @@ ENTRYPOINT ["/entrypoint.sh"]
 - `RUN chmod +x /entrypoint.sh` makes the script executable.
 - `ENTRYPOINT ["/entrypoint.sh]` defines the container’s *entrypoint*. This means whenever the container starts, it will always execute `/entrypoint.sh`.
 
-
 ### `entrypoint.sh`
 
 ```bash
@@ -234,13 +268,48 @@ export SPARK_CLASSPATH="/opt/spark/jars/*"
 - Adds all the JAR files we downloaded (Kafka, Cassandra, MSSQL connectors) to Spark's classpath which is essential for Spark to recognize and use these connectors.
 
 ```bash
+is_interactive() {
+    [ -t 0 ] && [ -t 1 ]
+}
+
 if [ "$1" = "spark-submit" ]; then
-    exec "$@"
+    shift
+    spark-submit "$@"
+    echo "Spark job completed."
+
+    if is_interactive; then
+        echo "Dropping into interactive shell..."
+        exec /bin/bash
+    else
+        echo "Keeping container alive (non-interactive mode)..."
+        exec tail -f /dev/null
+    fi
 else
-    exec /bin/bash
+    if is_interactive; then
+        echo "Starting interactive Spark shell..."
+        exec /bin/bash
+    else
+        echo "Spark container running in background..."
+        exec tail -f /dev/null
+    fi
 fi
 ```
 
-- If you run `spark-submit`, it executes your Spark job directly.
-- If you run anything else, it drops you into a bash shell for interactive work
+- If you run `spark-submit` and in interactive mode, after the Spark job finishes, container will fall back to bash terminal. Else, it container is run in non-interactive mode, then we just persist the container to keep it alive.
+- If you run any other command (or did not provide a command to run when creating the container) but is in interactive mode, it will bing you to bash terminal. Else, if container runs in non-interactive mode, then we just persis the container to keep it alive.
 - This allows the container to be used both for job execution and development.
+- The reason is because for ease of use with `docker-compose`. Because the line `exec /bin/bash` assumes you want the container to persist after job completion. But in Compose-based orchestration (e.g., multiple Spark workers, CI pipelines), that can be undesirable as Compose expects services to exit cleanly after the command finishes. Thus, we use the `tail` command instead.
+
+| **Command**                                                   | **Behavior (with `entrypoint.sh`)**                                                                                    |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `docker run -it spark-pyspark:3.5.1`                          | Starts an **interactive bash shell** inside the container.                                                                   |
+| `docker run -d spark-pyspark:3.5.1`                           | Runs in **background mode**, container stays alive with `tail -f /dev/null`.                                                 |
+| `docker run -it spark-pyspark:3.5.1 spark-submit /app/example_job.py` | Executes the Spark job interactively; after it finishes, drops into a **bash shell**.                                        |
+| `docker run -d spark-pyspark:3.5.1 spark-submit /app/example_job.py`  | Executes the Spark job in **background (detached)**; after completion, keeps container alive with `tail -f /dev/null`.       |
+| `docker exec -it spark-example bash`                      | Opens a **new interactive shell** inside a running container.                                                                |
+| `docker exec spark-example spark-submit /app/job.py`      | Runs a Spark job **non-interactively** inside a running container; keeps running afterward.                                  |
+| `docker start -ai spark-example`                          | **Restarts a stopped container** and reattaches interactively (bash if idle, or Spark output if job is running).             |
+| `docker start spark-example`                              | **Restarts** the container in background mode (no attached terminal).                                                        |
+| `docker-compose up`                                           | Runs services in **non-interactive mode** (Compose detaches); Spark jobs run, container stays alive via `tail -f /dev/null`. |
+| `docker-compose run -it spark`                                | Starts container **interactively** (bash shell or Spark job + shell).                                                        |
+| `docker-compose up -d`                                        | Starts containers in **detached background mode**, staying alive via `tail -f /dev/null`.                                    |
